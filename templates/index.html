@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Healthcare AI Interaction</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f4f4f9;
+        }
+        .form-container {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+        input, button {
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            width: 90%;
+            max-width: 300px;
+        }
+        button {
+            background-color: #28a745;
+            color: white;
+            cursor: pointer;
+            border: none;
+        }
+        button:hover {
+            background-color: #218838;
+        }
+        .message {
+            margin-top: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <h2>Healthcare AI Interaction</h2>
+        <form id="interactionForm">
+            <input type="text" name="input" id="inputField" placeholder="Ask your question..." required>
+            <input type="hidden" id="patientIdField" value="">
+            <button type="submit">Submit</button>
+        </form>
+        <div id="dynamicContent"></div>
+    </div>
+
+    <script>
+        const form = document.getElementById('interactionForm');
+        const dynamicContent = document.getElementById('dynamicContent');
+
+        form.addEventListener('submit', async function (event) {
+            event.preventDefault();
+            const input = document.getElementById('inputField').value;
+            const patientId = document.getElementById('patientIdField').value;
+
+            let url = '/interaction';
+            let body = { input };
+
+            if (input.startsWith('+') || /^\d+$/.test(input)) { // Assume it's a number validation
+                url = '/validate-number';
+                body = { patient_number: input };
+            }
+
+            if (patientId) {
+                url = '/choose-method';
+                body = { method: input, patient_id: patientId };
+            }
+
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(body)
+            });
+
+            const data = await response.json();
+
+            if (data.next_action === 'validate_number') {
+                document.getElementById('inputField').placeholder = 'Enter your number...';
+            } else if (data.next_action === 'choose_method') {
+                document.getElementById('patientIdField').value = data.patient_id;
+                dynamicContent.innerHTML = `
+                    <button onclick="chooseOption('Email')">Email</button>
+                    <button onclick="chooseOption('WhatsApp')">WhatsApp</button>
+                `;
+            }
+        });
+
+        async function chooseOption(method) {
+            const patientId = document.getElementById('patientIdField').value;
+
+            const response = await fetch('/choose-method', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ method, patient_id: patientId })
+            });
+
+            const data = await response.json();
+            dynamicContent.innerHTML = `<p class="message">${data.message}</p>`;
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,115 @@
+# Install necessary libraries
+!pip install tensorflow scikit-learn pandas
+
+import numpy as np
+import pickle
+import pandas as pd
+from datetime import datetime, timedelta
+import random
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import LSTM, Dense, Embedding, Dropout
+from tensorflow.keras.preprocessing.text import Tokenizer
+from tensorflow.keras.preprocessing.sequence import pad_sequences
+from sklearn.preprocessing import LabelEncoder
+from sklearn.model_selection import train_test_split
+
+# Function to preprocess texts
+def preprocess_texts(texts, tokenizer=None):
+    if tokenizer is None:
+        tokenizer = Tokenizer(num_words=10000, oov_token="<OOV>")
+        tokenizer.fit_on_texts(texts)
+    
+    # Convert texts to sequences
+    sequences = tokenizer.texts_to_sequences(texts)
+    
+    # Pad sequences to ensure uniform input size
+    padded_sequences = pad_sequences(sequences, padding='post')
+
+    return padded_sequences, tokenizer
+
+# Example data (existing data)
+texts = [
+    "Can I get my diagnosis report?", 
+    "I need my lab results", 
+    "Show me my recent scans", 
+    "Book an appointment", 
+    "Cancel my last appointment"
+]
+
+labels = [
+    "request_diagnosis_report", 
+    "request_lab_results", 
+    "request_scan_results", 
+    "book_appointment", 
+    "cancel_appointment"
+]
+
+# Generate synthetic doctor availability data
+doctors = [
+    "Dr. Pratik Mane", "Dr. Rajesh Kumar", "Dr. Priya Sharma", 
+    "Dr. Aishwarya Patel", "Dr. Vikram Sinha", "Dr. Neha Gupta",
+    "Dr. Rohit Verma", "Dr. Simran Kaur", "Dr. Arjun Kapoor", "Dr. Anjali Mehta"
+]
+
+# Generate random availability dates for the next 30 days
+start_date = datetime.now()
+availability_data = []
+
+for doctor in doctors:
+    available_date = start_date + timedelta(days=random.randint(1, 30))
+    availability_data.append({"doctor_name": doctor, "available_date": available_date.strftime("%d %B %Y")})
+
+# Convert to DataFrame for easy handling
+df = pd.DataFrame(availability_data)
+
+# Generating questions based on the available data
+for index, row in df.iterrows():
+    doctor_name = row['doctor_name']
+    available_date = row['available_date']
+    
+    # Sample questions a patient might ask
+    questions = [
+        f"Is {doctor_name} available on {available_date}?",
+        f"Can I book an appointment with {doctor_name} on {available_date}?",
+        f"Is {doctor_name} free on {available_date}?",
+    ]
+    
+    # Expected response would be "available" if queried with matching doctor and date
+    for question in questions:
+        texts.append(question)
+        labels.append(f"{doctor_name} is available on {available_date}")
+
+# Preprocessing data
+X, tokenizer = preprocess_texts(texts)
+
+# Encode the labels
+label_encoder = LabelEncoder()
+y = label_encoder.fit_transform(labels)
+
+# Splitting data into training and test sets
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Building the LSTM model
+model = Sequential()
+model.add(Embedding(input_dim=10000, output_dim=128, input_length=X.shape[1]))
+model.add(LSTM(128, return_sequences=True))
+model.add(Dropout(0.5))
+model.add(LSTM(64))
+model.add(Dense(len(set(y)), activation='softmax'))
+
+# Compiling the model
+model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+
+# Training the model
+model.fit(X_train, y_train, validation_data=(X_test, y_test), epochs=10, batch_size=32)
+
+# Save the model and tokenizer
+model.save('intent_model.h5')
+with open('tokenizer.pkl', 'wb') as f:
+    pickle.dump(tokenizer, f)
+
+# Save the label encoder as well
+with open('label_encoder.pkl', 'wb') as f:
+    pickle.dump(label_encoder, f)
+
+print("Model, tokenizer, and label encoder saved successfully.")
